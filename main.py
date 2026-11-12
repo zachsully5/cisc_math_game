@@ -249,6 +249,7 @@ def start_game(
 
 @route
 def game_page(state: State) -> Page:
+    """Display the current question and answer form."""
     if len(state.questions) == 0:
         return settings_page(state)
 
@@ -347,6 +348,7 @@ def result_page(state: State) -> Page:
     ])
 
 
+
 @route
 def next_round(state: State) -> Page:
     """Move to the next question or finish the game."""
@@ -357,6 +359,26 @@ def next_round(state: State) -> Page:
     state.questions.append(make_question(state.difficulty))
     return game_page(state)
 
+# Test next_round when game continues
+next_round_test_state = State(
+    "easy",
+    1,
+    5,
+    0,
+    0,
+    30,
+    [Question("2 + 2", 4, "", False, 0)],
+    0,
+    0,
+    0,
+    0,
+    [],
+    False
+)
+
+next_round_page = next_round(next_round_test_state)
+assert_equal(next_round_page.state.current_round, 2)
+assert_equal(len(next_round_page.state.questions), 2)
 
 @route
 def summary_page(state: State) -> Page:
@@ -398,6 +420,7 @@ def summary_page(state: State) -> Page:
 
 @route
 def leaderboard_page(state: State) -> Page:
+    """Display best scores and previous game records."""
     content = [
         Header("Leaderboard"),
         "Best score: " + str(state.best_score),
@@ -424,15 +447,58 @@ def leaderboard_page(state: State) -> Page:
     return Page(state, content)
 
 
-# A few route tests use fixed state values so their results are predictable.
+# ==========================
+# HELPER FUNCTION TESTS
+# ==========================
+
+test_questions = [
+    Question("1 + 1", 2, "2", True, 0),
+    Question("2 + 2", 4, "4", True, 0),
+    Question("3 + 3", 6, "5", False, 0),
+    Question("4 + 4", 8, "8", True, 0),
+]
+
+assert_equal(calculate_accuracy(test_questions), 75)
+assert_equal(calculate_highest_streak(test_questions), 2)
+assert_equal(calculate_accuracy([]), 0)
+assert_equal(calculate_highest_streak([]), 0)
+
+# ==========================
+# ROUTE TESTS
+# ==========================
+
 test_state = State(
     "easy", 1, 5, 0, 0, 30, [], 0, 0, 0, 0, [], False
 )
+
 assert_equal(index(test_state).state, test_state)
 assert_equal(instructions_page(test_state).state, test_state)
 assert_equal(settings_page(test_state).state, test_state)
 
-# This test checks the answer-handling route without relying on randomness.
+# Test start_game
+start_test_state = State(
+    "easy", 1, 5, 0, 0, 30,
+    [], 0, 0, 0, 0, [], False
+)
+
+start_page = start_game(start_test_state, "medium", "10", "15")
+
+assert_equal(start_page.state.difficulty, "medium")
+assert_equal(start_page.state.total_rounds, 10)
+assert_equal(start_page.state.timer_limit, 15)
+
+# Test game_page
+game_test_state = State(
+    "easy", 1, 5, 0, 0, 30,
+    [Question("2 + 2", 4, "", False, 0)],
+    0, 0, 0, 0, [], False
+)
+
+game_test_page = game_page(game_test_state)
+
+assert_equal(game_test_page.state, game_test_state)
+
+# Test submit_answer
 answer_test_state = State(
     "easy",
     1,
@@ -448,11 +514,13 @@ answer_test_state = State(
     [],
     False,
 )
+
 answer_test_page = submit_answer(answer_test_state, "4")
+
 assert_equal(answer_test_page.state.score, POINTS_PER_ANSWER)
 assert_equal(answer_test_page.state.streak, 1)
 
-# This test checks that a timeout resets the streak.
+# Test timeout
 timeout_test_state = State(
     "easy",
     1,
@@ -468,9 +536,103 @@ timeout_test_state = State(
     [],
     False,
 )
+
 timeout_test_page = timeout(timeout_test_state)
+
 assert_equal(timeout_test_page.state.streak, 0)
 assert_equal(timeout_test_page.state.questions[-1].time_used, 30)
+
+# Test result_page
+result_test_state = State(
+    "easy",
+    1,
+    5,
+    1,
+    10,
+    30,
+    [Question("2 + 2", 4, "4", True, 0)],
+    1,
+    0,
+    0,
+    0,
+    [],
+    False
+)
+
+result_test_page = result_page(result_test_state)
+
+assert_equal(result_test_page.state.score, 10)
+assert_equal(result_test_page.state.streak, 1)
+
+# Test next_round
+next_round_test_state = State(
+    "easy",
+    1,
+    5,
+    0,
+    0,
+    30,
+    [Question("2 + 2", 4, "", False, 0)],
+    0,
+    0,
+    0,
+    0,
+    [],
+    False
+)
+
+next_round_page = next_round(next_round_test_state)
+
+assert_equal(next_round_page.state.current_round, 2)
+assert_equal(len(next_round_page.state.questions), 2)
+
+# Test summary_page
+summary_test_state = State(
+    "easy",
+    5,
+    5,
+    0,
+    40,
+    30,
+    [
+        Question("1 + 1", 2, "2", True, 0),
+        Question("2 + 2", 4, "4", True, 0)
+    ],
+    0,
+    0,
+    0,
+    0,
+    [],
+    False
+)
+
+summary_test_page = summary_page(summary_test_state)
+
+assert_equal(summary_test_page.state.best_score, 40)
+assert_equal(summary_test_page.state.games_played, 1)
+assert_equal(len(summary_test_page.state.game_history), 1)
+
+# Test leaderboard_page
+leaderboard_test_state = State(
+    "easy",
+    1,
+    5,
+    0,
+    0,
+    30,
+    [],
+    0,
+    50,
+    4,
+    2,
+    [GameRecord(50, "easy", 5, 100)],
+    False
+)
+
+leaderboard_test_page = leaderboard_page(leaderboard_test_state)
+
+assert_equal(leaderboard_test_page.state.best_score, 50)
+assert_equal(leaderboard_test_page.state.games_played, 2)
 
 
 # The initial values are set here when the Drafter website starts.
@@ -478,3 +640,4 @@ initial_state = State(
     "easy", 1, 5, 0, 0, 30, [], 0, 0, 0, 0, [], False
 )
 start_server(initial_state)
+
